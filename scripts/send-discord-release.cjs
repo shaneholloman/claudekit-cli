@@ -135,11 +135,11 @@ function createEmbed(release) {
 	const fields = [];
 	let truncatedSections = false;
 
-	const sectionEntries = Object.entries(release.sections);
-	for (let i = 0; i < sectionEntries.length; i++) {
-		const [sectionName, items] = sectionEntries[i];
+	// Reserve slot 25 for the "More changes" pointer field — bail at 24 so the
+	// pointer (added below when truncatedSections is true) keeps total <= 25.
+	for (const [sectionName, items] of Object.entries(release.sections)) {
 		if (items.length === 0) continue;
-		if (fields.length >= 25) {
+		if (fields.length >= 24) {
 			truncatedSections = true;
 			break;
 		}
