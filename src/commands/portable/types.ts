@@ -20,6 +20,7 @@ export const ProviderType = z.enum([
 	"github-copilot",
 	"amp",
 	"kilo",
+	"kiro",
 	"roo",
 	"windsurf",
 	"cline",
@@ -29,15 +30,16 @@ export type ProviderType = z.infer<typeof ProviderType>;
 
 /** Conversion format used to transform source files */
 export type ConversionFormat =
-	| "direct-copy" // OpenCode, Codex commands, Droid hooks
+	| "direct-copy" // OpenCode, Codex commands, Droid hooks, Antigravity commands/skills
 	| "fm-to-fm" // Copilot, Cursor, Codex agents
 	| "fm-to-yaml" // Roo, Kilo
-	| "fm-strip" // Windsurf, Goose, Gemini CLI, Amp, Antigravity
+	| "fm-strip" // Windsurf, Goose, Gemini CLI, Amp
 	| "fm-to-json" // Cline
 	| "md-to-toml" // Gemini CLI commands
 	| "skill-md" // OpenHands
 	| "md-strip" // Config/rules: strip Claude-specific refs
 	| "md-to-mdc" // Config/rules: Cursor MDC format
+	| "md-to-kiro-steering" // Kiro IDE: steering files with YAML frontmatter
 	| "fm-to-codex-toml"; // Codex TOML multi-agent config
 
 /** Write strategy for target files */
@@ -47,7 +49,8 @@ export type WriteStrategy =
 	| "json-merge" // Merge into JSON config (Cline modes)
 	| "yaml-merge" // Merge into YAML config (Roo/Kilo modes)
 	| "single-file" // Write single output file (config)
-	| "codex-toml"; // Per-file .toml + config.toml registry merge (Codex)
+	| "codex-toml" // Per-file .toml + config.toml registry merge (Codex agents)
+	| "codex-hooks"; // Codex hooks: capability-gated transform + wrapper generation
 
 /** Provider path configuration for a specific portable type */
 export interface ProviderPathConfig {
@@ -125,6 +128,7 @@ export interface PortableInstallResult {
 	providerDisplayName: string;
 	success: boolean;
 	path: string;
+	operation?: "apply" | "delete";
 	error?: string;
 	overwritten?: boolean;
 	skipped?: boolean;

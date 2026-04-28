@@ -1,9 +1,7 @@
 # Project Roadmap: ClaudeKit CLI
 
-**Last Updated**: 2026-03-05
-**Version**: 3.36.0-dev.11
-**Last Updated**: 2026-03-02
-**Version**: 3.36.0-dev.7 (next stable: 3.36.0)
+**Last Updated**: 2026-04-16
+**Version**: 3.41.4-dev.26
 **Repository**: https://github.com/mrgoonie/claudekit-cli
 
 ---
@@ -13,6 +11,17 @@
 ClaudeKit CLI (`ck`) is a command-line tool for bootstrapping and updating ClaudeKit projects from private GitHub releases. Built with Bun and TypeScript, provides fast, secure project setup and maintenance with cross-platform support.
 
 **Current Status**: Active Development / Maintenance Phase
+
+## Desktop Control Center Foundation
+
+- Tauri v2 native shell now has Phase 1 backend coverage for sessions, entity browsers, MCP discovery, dashboard aggregates, and system diagnostics.
+- Typed invoke wrappers in `src/ui/src/lib/tauri-commands.ts` cover the expanded native command surface.
+- Phase 3 now adds unsigned desktop distribution plumbing: portable release assets, a plain `desktop-manifest.json` download manifest, and reusable desktop install/launch helpers.
+- Phase 4 now ships `ck app`, which detects an installed desktop binary, downloads and installs it on demand, and launches the native Control Center.
+- Phase 5A removes the Express boot requirement from Tauri desktop mode for supported native reads and routes unsupported flows back to CLI/web guidance.
+- Phase 5B expands the native tray with recent projects, dashboard/settings shortcuts, project recency tracking, and system-terminal launch for the most recent project.
+- Phase 5C adds a desktop-first first-run onboarding flow that scans common development folders, lets users register discovered projects, and persists onboarding completion in the native store.
+- Browser mode still uses the Express `/api` backend for `ck config` and the remaining server-backed flows.
 
 ---
 

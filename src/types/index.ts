@@ -48,6 +48,18 @@ export {
 	type CacheEntry,
 } from "./github.js";
 
+// Desktop distribution types
+export {
+	DesktopPlatformKeySchema,
+	type DesktopPlatformKey,
+	DesktopAssetTypeSchema,
+	type DesktopAssetType,
+	DesktopPlatformAssetSchema,
+	type DesktopPlatformAsset,
+	DesktopReleaseManifestSchema,
+	type DesktopReleaseManifest,
+} from "./desktop.js";
+
 // Metadata types
 export {
 	type FileOwnership,
@@ -161,6 +173,7 @@ export {
 	type PackageManager,
 	FrameworkSchema,
 	type Framework,
+	GEMINI_MODEL_VALUES,
 	GeminiModelSchema,
 	type GeminiModel,
 	StatuslineModeSchema,

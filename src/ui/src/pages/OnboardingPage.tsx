@@ -9,9 +9,11 @@ import InstallWizard from "../components/InstallWizard";
 import SuccessScreen from "../components/SuccessScreen";
 import { KIT_COMPARISONS, getKitFeatures } from "../data/kit-comparison";
 import type { KitComparison as KitComparisonType, KitFeature } from "../data/kit-comparison";
+import { isTauri } from "../hooks/use-tauri";
 import { useI18n } from "../i18n";
 import type { TranslationKey } from "../i18n";
 import { KitType } from "../types";
+import DesktopOnboardingPage from "./onboarding/desktop-onboarding-page";
 
 // Internal component for kit cards
 interface KitCardProps {
@@ -50,7 +52,7 @@ const KitCard: React.FC<KitCardProps> = ({ kit, selected, onSelect, features }) 
 	);
 };
 
-const OnboardingPage: React.FC = () => {
+const OnboardingPageContent: React.FC = () => {
 	const { t } = useI18n();
 	const navigate = useNavigate();
 	const [selectedKit, setSelectedKit] = useState<KitType | null>(null);
@@ -140,6 +142,14 @@ const OnboardingPage: React.FC = () => {
 			)}
 		</div>
 	);
+};
+
+const OnboardingPage: React.FC = () => {
+	if (isTauri()) {
+		return <DesktopOnboardingPage />;
+	}
+
+	return <OnboardingPageContent />;
 };
 
 export default OnboardingPage;
