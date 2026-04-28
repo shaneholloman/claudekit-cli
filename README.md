@@ -9,7 +9,9 @@ Command-line tool and web dashboard for managing ClaudeKit projects.
 ClaudeKit Config UI (`ck`) provides both CLI and web dashboard for managing ClaudeKit projects. It is built with Bun, TypeScript, and React for development, while the published CLI runs on plain Node.js so end users do not need Bun installed.
 
 **Key Features:**
-- **CLI Commands (16)**: new, init, config, projects, setup, skills, agents, commands, migrate, doctor, versions, update, uninstall, watch, content, easter-egg
+- **CLI Commands (17)**: new, init, app, config, projects, setup, skills, agents, commands, migrate, doctor, versions, update, uninstall, watch, content, easter-egg
+- **Desktop Launcher**: `ck app` downloads, installs, and launches the native Control Center on first run
+- **Desktop Runtime Split**: Tauri desktop mode now boots the UI without the Express dashboard server for supported native reads; server-backed flows stay in `ck` terminal/web workflows
 - **Web Dashboard**: Interactive React UI via `ck config ui` for configuration and project management
 - **Hook Diagnostics Dashboard**: Inspect recent Claude hook activity and failures from `ck config` across global and project scopes
 - **Projects Registry**: Centralized registry at `~/.claudekit/projects.json` with file locking
@@ -93,6 +95,12 @@ ck --help
 # Open config dashboard immediately
 ck config
 
+# Launch the desktop app (downloads it on first run)
+ck app
+
+# Force the existing web dashboard instead
+ck app --web
+
 # Expose the dashboard intentionally to your LAN/Tailscale
 ck config --host 0.0.0.0 --no-open
 
@@ -102,6 +110,7 @@ ck skills --help
 ck agents --help
 ck commands --help
 ck migrate --help
+ck app --help
 ```
 
 ### Config Dashboard Access
@@ -148,6 +157,10 @@ ck new --prefix
 # Offline installation (from local archive or directory)
 ck new --archive ~/downloads/engineer-v1.16.0.zip
 ck new --kit-path ~/extracted-kit/
+
+# Direct repo downloads are also supported
+ck new --archive ~/downloads/claudekit-engineer-main.zip
+ck new --kit-path ~/downloads/claudekit-engineer-main/
 ```
 
 **Flags:**
@@ -157,6 +170,8 @@ ck new --kit-path ~/extracted-kit/
 - `--opencode/--gemini`: Install optional packages
 - `--archive <path>`: Use local archive (zip/tar.gz) instead of downloading
 - `--kit-path <path>`: Use local kit directory instead of downloading
+
+`--archive` and `--kit-path` both accept direct repo downloads with a single wrapper directory, including GitHub "Download ZIP" archives and extracted repo folders that still contain `claudekit-engineer-main/` or similar at the top level.
 
 ### Initialize or Update Project
 
@@ -188,6 +203,10 @@ ck init --exclude "*.local" --prefix
 # Offline installation (from local archive or directory)
 ck init --archive ~/downloads/engineer-v1.16.0.zip
 ck init --kit-path ~/extracted-kit/
+
+# Direct repo downloads are also supported
+ck init --archive ~/downloads/claudekit-engineer-main.zip
+ck init --kit-path ~/downloads/claudekit-engineer-main/
 ```
 
 **Flags:**
@@ -198,6 +217,8 @@ ck init --kit-path ~/extracted-kit/
 - `--prefix`: Apply /ck: namespace to commands
 - `--archive <path>`: Use local archive (zip/tar.gz) instead of downloading
 - `--kit-path <path>`: Use local kit directory instead of downloading
+
+`--archive` and `--kit-path` both accept direct repo downloads with a single wrapper directory, including GitHub "Download ZIP" archives and extracted repo folders that still contain `claudekit-engineer-main/` or similar at the top level.
 
 **Default Behavior with `-y` Flag:**
 
@@ -634,6 +655,25 @@ bun test
 # Optional: run expensive CLI integration tests explicitly
 bun run test:integration
 ```
+
+## E2E Tests
+
+Playwright E2E tests cover the `ck migrate` dashboard (3 scenarios). Tests run against the local dev server and use API mocking — no real filesystem state is modified.
+
+**Prerequisites:** Node 18+ or Bun 1.0+, Chromium (installed automatically).
+
+```bash
+# One-time browser setup (if not already installed)
+./node_modules/.bin/playwright install chromium
+
+# Run all E2E specs
+bun run test:e2e
+
+# Interactive UI mode (watch + trace viewer)
+bun run test:e2e:ui
+```
+
+Note: The dev server starts automatically via `bun run dashboard:dev`. CI wiring is a separate follow-up (local-only for now).
 
 ## FAQ
 

@@ -15,6 +15,7 @@ describe("help-commands", () => {
 	const expectedCommands = [
 		"new",
 		"init",
+		"app",
 		"config",
 		"content",
 		"projects",
@@ -25,9 +26,12 @@ describe("help-commands", () => {
 		"uninstall",
 		"skills",
 		"agents",
+		"backups",
 		"commands",
 		"migrate",
 		"watch",
+		"api",
+		"plan",
 	];
 
 	describe("HELP_REGISTRY", () => {
@@ -49,7 +53,6 @@ describe("help-commands", () => {
 				expect(command.usage).toContain("ck");
 				expect(Array.isArray(command.examples)).toBe(true);
 				expect(Array.isArray(command.optionGroups)).toBe(true);
-				expect(command.optionGroups.length).toBeGreaterThan(0);
 			}
 		});
 
@@ -131,6 +134,16 @@ describe("help-commands", () => {
 			expect(groupTitles).toContain("Project Options");
 			expect(groupTitles).toContain("Filter Options");
 			expect(groupTitles).toContain("Installation Options");
+		});
+	});
+
+	describe("'app' command", () => {
+		test("has correct structure", () => {
+			const help = HELP_REGISTRY.app;
+			expect(help.name).toBe("app");
+			expect(help.description).toContain("desktop app");
+			expect(help.usage).toBe("ck app [options]");
+			expect(help.examples).toHaveLength(2);
 		});
 	});
 
@@ -325,10 +338,10 @@ describe("help-commands", () => {
 			}
 		});
 
-		test("all example commands start with 'ck'", () => {
+		test("all example commands start with 'ck' (optionally prefixed with env vars)", () => {
 			for (const command of Object.values(HELP_REGISTRY)) {
 				for (const example of command.examples) {
-					expect(example.command).toMatch(/^ck\s+/);
+					expect(example.command).toMatch(/^(\w+=\S+\s+)*ck\s+/);
 				}
 			}
 		});

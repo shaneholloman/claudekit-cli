@@ -1,7 +1,10 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import {
+	binaryCache,
 	detectProviderPathCollisions,
+	getPortableBasePath,
 	getProvidersSupporting,
+	hasBinaryInPath,
 	providers,
 } from "../provider-registry.js";
 import type { ProviderType } from "../types.js";
@@ -18,6 +21,7 @@ const ALL_PROVIDERS: ProviderType[] = [
 	"github-copilot",
 	"amp",
 	"kilo",
+	"kiro",
 	"roo",
 	"windsurf",
 	"cline",
@@ -26,15 +30,15 @@ const ALL_PROVIDERS: ProviderType[] = [
 
 describe("provider-registry", () => {
 	describe("config entries", () => {
-		it("all 15 providers have config entry", () => {
+		it("all 16 providers have config entry", () => {
 			for (const provider of ALL_PROVIDERS) {
 				expect(providers[provider].config).not.toBeNull();
 			}
 		});
 
-		it("getProvidersSupporting('config') returns array of length 15", () => {
+		it("getProvidersSupporting('config') returns array of length 16", () => {
 			const supporting = getProvidersSupporting("config");
-			expect(supporting).toHaveLength(15);
+			expect(supporting).toHaveLength(16);
 		});
 
 		it("Claude Code uses direct-copy for config", () => {
@@ -115,35 +119,77 @@ describe("provider-registry", () => {
 	});
 
 	describe("rules entries", () => {
-		it("all 15 providers have rules entry", () => {
+		it("all 16 providers have rules entry", () => {
 			for (const provider of ALL_PROVIDERS) {
 				expect(providers[provider].rules).not.toBeNull();
 			}
 		});
 
-		it("getProvidersSupporting('rules') returns array of length 15", () => {
+		it("getProvidersSupporting('rules') returns array of length 16", () => {
 			const supporting = getProvidersSupporting("rules");
-			expect(supporting).toHaveLength(15);
+			expect(supporting).toHaveLength(16);
+		});
+	});
+
+	describe("kiro entries", () => {
+		it("kiro config uses md-to-kiro-steering format", () => {
+			expect(providers.kiro.config?.format).toBe("md-to-kiro-steering");
+		});
+
+		it("kiro config projectPath is .kiro/steering/project.md", () => {
+			expect(providers.kiro.config?.projectPath).toBe(".kiro/steering/project.md");
+		});
+
+		it("kiro rules use per-file to .kiro/steering", () => {
+			expect(providers.kiro.rules?.projectPath).toBe(".kiro/steering");
+			expect(providers.kiro.rules?.writeStrategy).toBe("per-file");
+		});
+
+		it("kiro skills use direct-copy format", () => {
+			expect(providers.kiro.skills?.format).toBe("direct-copy");
+		});
+
+		it("kiro skills projectPath is .kiro/skills", () => {
+			expect(providers.kiro.skills?.projectPath).toBe(".kiro/skills");
+		});
+
+		it("kiro does not support hooks", () => {
+			expect(providers.kiro.hooks).toBeNull();
+		});
+
+		it("kiro does not support commands", () => {
+			expect(providers.kiro.commands).toBeNull();
+		});
+
+		it("kiro has no subagent support (uses steering for context, not delegation)", () => {
+			expect(providers.kiro.subagents).toBe("none");
+		});
+
+		it("kiro agents map to steering directory", () => {
+			expect(providers.kiro.agents?.projectPath).toBe(".kiro/steering");
+			expect(providers.kiro.agents?.format).toBe("md-to-kiro-steering");
 		});
 	});
 
 	describe("hooks entries", () => {
-		it("Claude Code, Droid, and Codex have hooks migration entries", () => {
-			expect(providers["claude-code"].hooks).not.toBeNull();
-			expect(providers.droid.hooks).not.toBeNull();
-			expect(providers.codex.hooks).not.toBeNull();
+		const PROVIDERS_WITH_HOOKS: ProviderType[] = ["claude-code", "droid", "codex", "gemini-cli"];
+
+		it("Claude Code, Droid, Codex, and Gemini CLI have hooks migration entries", () => {
+			for (const provider of PROVIDERS_WITH_HOOKS) {
+				expect(providers[provider].hooks).not.toBeNull();
+			}
 			for (const provider of ALL_PROVIDERS) {
-				if (provider === "claude-code" || provider === "droid" || provider === "codex") continue;
+				if (PROVIDERS_WITH_HOOKS.includes(provider)) continue;
 				expect(providers[provider].hooks ?? null).toBeNull();
 			}
 		});
 
-		it("getProvidersSupporting('hooks') returns claude-code, droid, and codex", () => {
+		it("getProvidersSupporting('hooks') returns providers with hooks support", () => {
 			const supporting = getProvidersSupporting("hooks");
-			expect(supporting).toHaveLength(3);
-			expect(supporting).toContain("claude-code");
-			expect(supporting).toContain("droid");
-			expect(supporting).toContain("codex");
+			expect(supporting).toHaveLength(PROVIDERS_WITH_HOOKS.length);
+			for (const provider of PROVIDERS_WITH_HOOKS) {
+				expect(supporting).toContain(provider);
+			}
 		});
 
 		it("Claude Code hooks path points to .claude/hooks", () => {
@@ -158,7 +204,7 @@ describe("provider-registry", () => {
 			expect(droidHooksPath).toContain(".factory/hooks");
 		});
 
-		it("Claude Code, Droid, and Codex have settingsJsonPath for hooks registration", () => {
+		it("Claude Code, Droid, Codex, and Gemini CLI have settingsJsonPath for hooks registration", () => {
 			expect(providers["claude-code"].settingsJsonPath).toBeDefined();
 			expect(providers["claude-code"].settingsJsonPath?.projectPath).toBe(".claude/settings.json");
 			const ccSettingsPath =
@@ -177,17 +223,33 @@ describe("provider-registry", () => {
 			const codexSettingsPath =
 				providers.codex.settingsJsonPath?.globalPath?.replace(/\\/g, "/") ?? "";
 			expect(codexSettingsPath).toContain(".codex/hooks.json");
+
+			expect(providers["gemini-cli"].settingsJsonPath).toBeDefined();
+			expect(providers["gemini-cli"].settingsJsonPath?.projectPath).toBe(".gemini/settings.json");
+			const geminiSettingsPath =
+				providers["gemini-cli"].settingsJsonPath?.globalPath?.replace(/\\/g, "/") ?? "";
+			expect(geminiSettingsPath).toContain(".gemini/settings.json");
 		});
 
 		it("other providers do not have settingsJsonPath", () => {
 			for (const provider of ALL_PROVIDERS) {
-				if (provider === "claude-code" || provider === "droid" || provider === "codex") continue;
+				if (PROVIDERS_WITH_HOOKS.includes(provider)) continue;
 				expect(providers[provider].settingsJsonPath).toBeNull();
 			}
 		});
 	});
 
 	describe("skills path consolidation to .agents/skills", () => {
+		it("opencode skills projectPath is .claude/skills for native Claude compatibility", () => {
+			expect(providers.opencode.skills?.projectPath).toBe(".claude/skills");
+		});
+
+		it("opencode skills globalPath points to .claude/skills to avoid duplicate shadows", () => {
+			const globalPath = providers.opencode.skills?.globalPath?.replace(/\\/g, "/") ?? "";
+			expect(globalPath).toContain(".claude/skills");
+			expect(globalPath).not.toContain(".config/opencode/skills");
+		});
+
 		it("gemini-cli skills projectPath is .agents/skills", () => {
 			expect(providers["gemini-cli"].skills?.projectPath).toBe(".agents/skills");
 		});
@@ -220,9 +282,30 @@ describe("provider-registry", () => {
 		it("codex skills projectPath remains .agents/skills after detection cleanup", () => {
 			expect(providers.codex.skills?.projectPath).toBe(".agents/skills");
 		});
+
+		it("getPortableBasePath returns the directory base for per-file targets", () => {
+			expect(getPortableBasePath("codex", "skills", { global: false })).toBe(".agents/skills");
+		});
+
+		it("getPortableBasePath returns the file target for merge-single targets", () => {
+			expect(
+				getPortableBasePath("codex", "config", { global: true })?.replace(/\\/g, "/"),
+			).toContain(".codex/AGENTS.md");
+		});
 	});
 
 	describe("detectProviderPathCollisions", () => {
+		it("detects claude-code+opencode skills path collision in project scope", () => {
+			const collisions = detectProviderPathCollisions(["claude-code", "opencode"], {
+				global: false,
+			});
+			const skillCollisions = collisions.filter((c) => c.portableType === "skills");
+			expect(skillCollisions).toHaveLength(1);
+			expect(skillCollisions[0].path).toBe(".claude/skills");
+			expect(skillCollisions[0].providers).toContain("claude-code");
+			expect(skillCollisions[0].providers).toContain("opencode");
+		});
+
 		it("detects codex+amp skills path collision in project scope", () => {
 			const collisions = detectProviderPathCollisions(["codex", "amp"], { global: false });
 			const skillCollisions = collisions.filter((c) => c.portableType === "skills");
@@ -295,5 +378,86 @@ describe("provider-registry", () => {
 			const skillCollisions = collisions.filter((c) => c.portableType === "skills");
 			expect(skillCollisions).toHaveLength(0);
 		});
+	});
+
+	describe("gemini-cli hooks + settingsJsonPath", () => {
+		it("has hooks config with correct paths", () => {
+			const gemini = providers["gemini-cli"];
+			expect(gemini.hooks).not.toBeNull();
+			expect(gemini.hooks?.projectPath).toBe(".gemini/hooks");
+			expect(gemini.hooks?.globalPath).toContain(".gemini/hooks");
+			expect(gemini.hooks?.format).toBe("direct-copy");
+			expect(gemini.hooks?.writeStrategy).toBe("per-file");
+		});
+
+		it("has settingsJsonPath for hooks registration", () => {
+			const gemini = providers["gemini-cli"];
+			expect(gemini.settingsJsonPath).not.toBeNull();
+			expect(gemini.settingsJsonPath?.projectPath).toBe(".gemini/settings.json");
+			expect(gemini.settingsJsonPath?.globalPath).toContain(".gemini/settings.json");
+		});
+
+		it("preserves existing agent/command/skill/config/rules config", () => {
+			const gemini = providers["gemini-cli"];
+			expect(gemini.agents?.format).toBe("fm-strip");
+			expect(gemini.commands?.format).toBe("md-to-toml");
+			expect(gemini.skills?.format).toBe("direct-copy");
+			expect(gemini.config?.format).toBe("md-strip");
+			expect(gemini.rules?.format).toBe("md-strip");
+		});
+	});
+
+	describe("hasBinaryInPath", () => {
+		afterEach(() => {
+			binaryCache.clear();
+		});
+
+		it("returns true for a binary known to exist (node)", () => {
+			// `node` is always available in the test environment
+			expect(hasBinaryInPath("node")).toBe(true);
+		});
+
+		it("returns false for a non-existent binary", () => {
+			expect(hasBinaryInPath("ck-nonexistent-binary-xyz-12345")).toBe(false);
+		});
+
+		it("caches results across repeated calls", () => {
+			// First call populates cache
+			const result1 = hasBinaryInPath("node");
+			expect(binaryCache.has("node")).toBe(true);
+
+			// Second call uses cache — same result, no extra shell spawn
+			const result2 = hasBinaryInPath("node");
+			expect(result1).toBe(result2);
+		});
+
+		it("caches false results too", () => {
+			hasBinaryInPath("ck-nonexistent-binary-xyz-12345");
+			expect(binaryCache.get("ck-nonexistent-binary-xyz-12345")).toBe(false);
+		});
+	});
+
+	describe("detect functions include binary checks", () => {
+		// Verify that providers with CLI binaries include hasBinaryInPath in their detect
+		// by checking that detect() returns a boolean (basic smoke test)
+		const providersWithBinaryDetection: ProviderType[] = [
+			"claude-code",
+			"codex",
+			"opencode",
+			"cursor",
+			"droid",
+			"goose",
+			"gemini-cli",
+			"amp",
+			"windsurf",
+			"antigravity",
+		];
+
+		for (const providerName of providersWithBinaryDetection) {
+			it(`${providerName} detect() returns a boolean`, async () => {
+				const result = await providers[providerName].detect();
+				expect(typeof result).toBe("boolean");
+			});
+		}
 	});
 });

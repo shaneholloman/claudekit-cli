@@ -46,6 +46,8 @@ bun run validate
 # Note: validate uses lint (read-only check), not lint:fix. Run lint:fix manually first.
 ```
 
+**When touching UI files (`src/ui/`):** The pre-push hook runs `bun run ui:build` automatically. The UI has a stricter TypeScript config (`tsc -b`) that catches errors `tsc --noEmit` misses (unused vars, missing ES lib methods like `Array.at()`). If debugging CI failures manually, run `bun run ui:build` from root.
+
 **Enforced by git hooks** — `pre-commit` runs typecheck+lint+build, `pre-push` adds tests. Hooks auto-install on `bun install`. If hooks are missing, run `bun run install:hooks`.
 
 **AI agents: NEVER use `--no-verify` to bypass hooks. NEVER set `SKIP_HOOKS=true`. If the hook rejects your commit, fix the code — do not skip the gate. This rule is NON-NEGOTIABLE.**
@@ -88,6 +90,77 @@ bun run dashboard:dev     # Start dashboard (Express+Vite on :3456)
 - Backend API + Vite HMR served together
 - **DO NOT** use `cd src/ui && bun dev` alone — no API backend, everything breaks
 - Source: `src/commands/config/config-ui-command.ts` → `src/domains/web-server/`
+
+## Desktop App (Tauri v2)
+
+ClaudeKit ships a native desktop app ("Control Center") built with Tauri v2 (Rust backend + React frontend).
+
+### Architecture
+
+The dashboard React app (`src/ui/`) runs in two modes:
+- **Web mode** — served via `ck config ui` (Express + Vite on :3456)
+- **Desktop mode** — embedded in Tauri webview, detected by `isTauri()` from `src/ui/src/hooks/use-tauri.ts`
+
+The Rust backend (`src-tauri/`) provides native capabilities (filesystem, tray, auto-update) via Tauri commands. The frontend calls these via `@tauri-apps/api`.
+
+### Rust Backend Structure
+
+```
+src-tauri/
+├── tauri.conf.json     # App config (build, CSP, updater, icons)
+├── Cargo.toml          # Rust dependencies
+├── capabilities/       # Permission grants (store, dialog, updater)
+├── icons/              # App icons (generated from src/ui/public/images/logo-512.png)
+└── src/
+    ├── lib.rs          # Tauri builder: plugins, setup, command registration
+    ├── tray.rs         # System tray: Open, Check Updates, Quit
+    ├── projects.rs     # Multi-project management (store-backed)
+    ├── commands/
+    │   └── config.rs   # 7 commands: read/write config, settings, statusline
+    └── core/
+        ├── mod.rs
+        ├── config_parser.rs  # JSON read/write with graceful missing-file handling
+        ├── paths.rs          # Platform-aware path resolution (~/.claude/, project/.claude/)
+        └── schema.rs         # CkConfig, StatuslineLayout, StatuslineTheme structs
+```
+
+### Quick Commands
+
+```bash
+bun run tauri:dev       # Dev (starts dashboard:dev + Rust in parallel)
+bun run tauri:build     # Production build (dmg/msi/AppImage)
+cd src-tauri && cargo check   # Type-check Rust only
+```
+
+### CI
+
+`.github/workflows/desktop-build.yml` builds on macOS/Ubuntu/Windows. Triggered by: PRs that touch `src-tauri/` or `src/ui/` (fast `check` gate only — typecheck + lint + test + ui:build + `cargo check`), `desktop-v*` tag pushes (full 3-platform matrix + release), and `workflow_dispatch` (manual). The heavy matrix is **skipped on PRs** — binaries only ship on tags.
+
+### Release tagging is MANDATORY for app-facing changes
+
+**A merged PR does NOT produce a usable app.** No `desktop-v*` tag = no binaries = `ck app` will 404. Any work that touches the desktop app surface (`src-tauri/`, `src/ui/`, `ck app` command, desktop release manifest, `desktop-build.yml`) MUST include a final tagging step after merge:
+
+```bash
+cd ~/claudekit/claudekit-cli && git checkout dev && git pull
+
+# Dev channel (safe: prerelease, updates desktop-latest-dev only)
+git tag desktop-v<version>-dev.<n> && git push origin desktop-v<version>-dev.<n>
+
+# Stable channel (ships to all end users via desktop-latest)
+git tag desktop-v<version> && git push origin desktop-v<version>
+```
+
+Rules:
+- Validate on the **dev channel first** (`-dev.<n>` suffix) before tagging a stable release. `ck app --dev` or a prerelease CLI auto-resolves to `desktop-latest-dev`.
+- Never promote to stable until dev has been smoke-tested on macOS + Windows + Linux.
+- The `/maintainer` skill's Step 9 covers branch/worktree cleanup but does NOT auto-tag — tagging is a conscious decision gated on smoke-test outcome.
+
+**TODO (pre-release):**
+- Generate updater key pair: `tauri signer generate`
+- Store `TAURI_SIGNING_PRIVATE_KEY` as repo secret
+- Populate `pubkey` in `tauri.conf.json`
+
+---
 
 ## Project Structure
 
@@ -134,6 +207,33 @@ tests/                # Additional test suites
 - **Cross-platform paths**: `services/transformers/global-path-transformer.ts`
 - **Domain-Driven**: Business logic grouped by domain in `domains/`
 - **Path Aliases**: `@/` maps to `src/` for cleaner imports
+
+## Quality Gate Rules
+
+### Path Safety (MANDATORY)
+All file paths MUST use `path.join()`, `path.resolve()`, or `path.normalize()` — never concatenate with string `+` or template literals. Quote all paths in shell commands with double quotes. Test with spaces in directory names before committing path-handling code.
+
+**Watch files:** `settings-processor.ts`, `global-path-transformer.ts`, `command-normalizer.ts`, `process-lock.ts`
+
+### Release Config Freeze
+NEVER modify `.releaserc.js`, `release*.yml`, or `scripts/*build*` without running `bun run build && npm pack --dry-run` to verify package contents. Dev and main release configs MUST stay functionally equivalent — if you change one, verify the other. Always run `npx semantic-release --dry-run` on release config PRs.
+
+### Migration Test Requirement
+Changes to `migrate-command.ts`, `provider-registry.ts`, or `reconciler.ts` MUST include a fixture-based integration test covering the new provider/state path. Test both fresh-install and upgrade-from-previous-version scenarios.
+
+### Update Command Decision Matrix
+Before modifying `update-cli.ts`, consult this truth table:
+
+| User Flag | npm Channel | Registry Source | Expected Behavior |
+|-----------|-------------|-----------------|-------------------|
+| (none) | stable | npm latest | Update to latest stable |
+| --dev | dev | npm @dev tag | Update to latest dev |
+| --yes | (any) | (any) | Non-interactive, skip kit selection |
+| --yes + prerelease installed | dev | npm @dev tag | Stay on dev channel |
+
+All paths must be covered by tests in `update-cli.test.ts`.
+
+---
 
 ## Idempotent Migration (`ck migrate`)
 
@@ -213,3 +313,24 @@ Detailed docs in `docs/`:
 - `code-standards.md` - Coding conventions
 - `system-architecture.md` - Technical details
 - `deployment-guide.md` - Release procedures
+
+## Agent Quick Reference
+
+Machine-readable CLI manifest: [`cli-manifest.json`](./cli-manifest.json)
+Human/LLM reference: [`docs/cli-reference.md`](./docs/cli-reference.md)
+
+Top-level commands (all support `ck <cmd> --help`):
+- `ck new` — bootstrap a new ClaudeKit project
+- `ck init` — initialize/update a ClaudeKit project
+- `ck update` — update the CLI itself
+- `ck doctor` — health check
+- `ck uninstall`, `ck backups`, `ck app`, `ck versions`, `ck setup`
+- `ck config`, `ck projects`, `ck skills`, `ck agents`, `ck commands`, `ck migrate`
+- `ck api`, `ck plan`, `ck content`, `ck watch`
+
+Two-level help also works: `ck <cmd> <subcommand> --help`.
+
+Pitfalls:
+- `ck init --force` does NOT do a fresh install — use `--fresh` for that.
+- `ck update --kit` is deprecated — use `ck init --kit` instead.
+- `ck migrate --dry-run` first to preview before writing.

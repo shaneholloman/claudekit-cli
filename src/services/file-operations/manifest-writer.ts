@@ -144,8 +144,12 @@ export class ManifestWriter {
 	/**
 	 * Remove a kit from metadata.json (for kit-scoped uninstall)
 	 */
-	static async removeKitFromManifest(claudeDir: string, kit: KitType): Promise<boolean> {
-		return removeKitFromManifest(claudeDir, kit);
+	static async removeKitFromManifest(
+		claudeDir: string,
+		kit: KitType,
+		options?: { lockHeld?: boolean },
+	): Promise<boolean> {
+		return removeKitFromManifest(claudeDir, kit, options);
 	}
 
 	/**
@@ -154,7 +158,7 @@ export class ManifestWriter {
 	static async retainTrackedFilesInManifest(
 		claudeDir: string,
 		retainedPaths: string[],
-		options?: { excludeKit?: KitType },
+		options?: { excludeKit?: KitType; lockHeld?: boolean },
 	): Promise<boolean> {
 		return retainTrackedFilesInManifest(claudeDir, retainedPaths, options);
 	}
