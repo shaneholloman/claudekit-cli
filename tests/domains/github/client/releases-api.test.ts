@@ -83,4 +83,43 @@ describe("ReleasesApi.listReleasesWithCache cache poisoning", () => {
 
 		listReleasesSpy.mockRestore();
 	});
+
+	it("does NOT cache a null/undefined release result (defensive)", async () => {
+		// Belt-and-braces guard: even if `listReleases` ever returns
+		// `null`/`undefined` (future refactor, upstream type drift),
+		// the cache write must be skipped without throwing on `.length`.
+		const api = new ReleasesApi(async () => ({}) as never);
+		const listReleasesSpy = spyOn(api, "listReleases").mockResolvedValue(
+			null as unknown as GitHubRelease[],
+		);
+
+		const result = await api.listReleasesWithCache(kit, { limit: 5 });
+
+		expect(result).toEqual([]);
+		expect(cacheSetSpy).not.toHaveBeenCalled();
+
+		listReleasesSpy.mockRestore();
+	});
+
+	it("serves an existing cached empty list as-is until TTL expires", async () => {
+		// Pinning test: this PR deliberately does NOT invalidate cache
+		// entries that were poisoned with `[]` before the fix shipped.
+		// Stuck users wait out the TTL or clear the cache manually
+		// (see follow-up issue for `ck cache clear`). If a future change
+		// adds eager invalidation, this test will flag the behavior shift.
+		cacheGetSpy.mockResolvedValueOnce([] as unknown as GitHubRelease[]);
+
+		const api = new ReleasesApi(async () => ({}) as never);
+		const listReleasesSpy = spyOn(api, "listReleases").mockResolvedValue(
+			[] as unknown as GitHubRelease[],
+		);
+
+		const result = await api.listReleasesWithCache(kit, { limit: 5 });
+
+		expect(result).toEqual([]);
+		expect(listReleasesSpy).not.toHaveBeenCalled();
+		expect(cacheSetSpy).not.toHaveBeenCalled();
+
+		listReleasesSpy.mockRestore();
+	});
 });
